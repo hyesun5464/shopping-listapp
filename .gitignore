@@ -1,0 +1,11 @@
+# 환경 변수 / 비밀 정보
+.env
+.env.*
+
+# 로컬 도구 설정 및 산출물
+.claude/
+.playwright-mcp/
+
+# OS 산출물
+.DS_Store
+Thumbs.db
