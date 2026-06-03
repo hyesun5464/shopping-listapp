@@ -213,55 +213,99 @@
     </footer>
   </div>
 
-  <script>
-    const STORAGE_KEY = "shopping-list-items";
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = "https://brqbfvmhnpnncqfsmwzj.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_hZmmFVKaLcAFlAP5n8Wt4Q_MTKFn8Oh";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const input = document.getElementById("itemInput");
     const addBtn = document.getElementById("addBtn");
     const list = document.getElementById("list");
     const status = document.getElementById("status");
     const clearDoneBtn = document.getElementById("clearDone");
 
-    let items = loadItems();
+    let items = [];
 
-    function loadItems() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      } catch {
-        return [];
+    async function loadItems() {
+      const { data, error } = await supabase
+        .from("shopping_items")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (error) {
+        console.error("항목을 불러오지 못했습니다:", error);
+        return;
+      }
+      items = data;
+      render();
+    }
+
+    async function addItem() {
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      input.focus();
+      const { data, error } = await supabase
+        .from("shopping_items")
+        .insert({ text, done: false })
+        .select()
+        .single();
+      if (error) {
+        console.error("추가하지 못했습니다:", error);
+        return;
+      }
+      items.push(data);
+      render();
+    }
+
+    async function toggleItem(id) {
+      const item = items.find((i) => i.id === id);
+      if (!item) return;
+      const newDone = !item.done;
+      item.done = newDone;
+      render();
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ done: newDone })
+        .eq("id", id);
+      if (error) {
+        console.error("업데이트하지 못했습니다:", error);
+        item.done = !newDone;
+        render();
       }
     }
 
-    function saveItems() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    }
-
-    function addItem() {
-      const text = input.value.trim();
-      if (!text) return;
-      items.push({ id: Date.now(), text, done: false });
-      input.value = "";
-      saveItems();
-      render();
-      input.focus();
-    }
-
-    function toggleItem(id) {
-      const item = items.find((i) => i.id === id);
-      if (item) item.done = !item.done;
-      saveItems();
-      render();
-    }
-
-    function deleteItem(id) {
+    async function deleteItem(id) {
+      const prev = items;
       items = items.filter((i) => i.id !== id);
-      saveItems();
       render();
+      const { error } = await supabase
+        .from("shopping_items")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        console.error("삭제하지 못했습니다:", error);
+        items = prev;
+        render();
+      }
     }
 
-    function clearDone() {
+    async function clearDone() {
+      const doneIds = items.filter((i) => i.done).map((i) => i.id);
+      if (doneIds.length === 0) return;
+      const prev = items;
       items = items.filter((i) => !i.done);
-      saveItems();
       render();
+      const { error } = await supabase
+        .from("shopping_items")
+        .delete()
+        .in("id", doneIds);
+      if (error) {
+        console.error("완료 항목을 삭제하지 못했습니다:", error);
+        items = prev;
+        render();
+      }
     }
 
     function render() {
@@ -307,7 +351,7 @@
     });
     clearDoneBtn.addEventListener("click", clearDone);
 
-    render();
+    loadItems();
   </script>
 </body>
 </html>
